@@ -1,0 +1,43 @@
+name: Build
+
+on:
+  schedule:
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "README.md"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Add toolchain setup steps (e.g. actions/setup-java) here if the build needs them.
+
+      - name: Apply patches and build
+        run: bash scripts/build.sh
+
+      - name: Summarize
+        id: config
+        run: |
+          source scripts/lib.sh
+          REF="$(upstream_ref)"
+          echo "Built against [\`${REF:0:7}\`](${UPSTREAM_REPO%.git}/commit/$REF) of $UPSTREAM_REPO" >> "$GITHUB_STEP_SUMMARY"
+          echo "artifacts=${BUILD_ARTIFACTS:+$WORK_DIR/$BUILD_ARTIFACTS}" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifacts
+        if: steps.config.outputs.artifacts != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.config.outputs.name }}
+          path: ${{ steps.config.outputs.artifacts }}
